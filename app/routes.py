@@ -52,23 +52,24 @@ def clean_response(raw_text):
     return cleaned_text.strip()
 
 def generate_response(user_input):
+    """Generate a response using the Gemini API."""
     prompt = f"{user_input}"
-
-    # Use the correct model name for Gemini 2.5 Flash with full model path
+    
+    generation_config = {
+        "temperature": 0.45,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 1500,
+        "response_mime_type": "text/plain",
+    }
+    
     model = genai.GenerativeModel(
-        "models/gemini-2.5-flash",
-        generation_config={
-            "temperature": 0.45,
-            "top_p": 0.95,
-            "top_k": 64,
-            "max_output_tokens": 1500,
-            "response_mime_type": "text/plain",
-        },
+        model_name="models/gemini-2.5-flash",
+        generation_config=generation_config,
     )
-
+    
     response = model.generate_content(prompt)
-
-    raw_content = response.text
+    raw_content = str(response.candidates[0].content)  # Convert to string explicitly
     return clean_response(raw_content)
 
 
