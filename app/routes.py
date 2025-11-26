@@ -69,7 +69,16 @@ def generate_response(user_input):
     )
     
     response = model.generate_content(prompt)
-    raw_content = str(response.candidates[0].content)  # Convert to string explicitly
+    
+    # Properly extract text from response
+    if response.candidates and len(response.candidates) > 0:
+        if hasattr(response.candidates[0].content, 'parts') and response.candidates[0].content.parts:
+            raw_content = response.candidates[0].content.parts[0].text
+        else:
+            raw_content = response.text if hasattr(response, 'text') else str(response.candidates[0].content)
+    else:
+        raw_content = response.text if hasattr(response, 'text') else "No response generated"
+    
     return clean_response(raw_content)
 
 
@@ -133,13 +142,11 @@ def get_recommendation():
 
         # Generate response using Gemini API
         try:
-            raw_recommendation = generate_response(prompt)
+            detailed_recommendation = generate_response(prompt)
         except Exception as api_error:
             print(f"Error in generate_response: {api_error}")
             return jsonify({"error": f"Failed to generate response: {str(api_error)}"}), 500
 
-        # Clean and format the response
-        detailed_recommendation = clean_response(raw_recommendation)
         return jsonify({"recommendation": detailed_recommendation}), 200
 
     except Exception as e:
