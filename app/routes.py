@@ -54,8 +54,9 @@ def clean_response(raw_text):
 def generate_response(user_input):
     prompt = f"{user_input}"
 
+    # Use the correct model name for Gemini 2.5 Flash with full model path
     model = genai.GenerativeModel(
-        "gemini-1.5-flash-latest",
+        "models/gemini-2.5-flash",
         generation_config={
             "temperature": 0.45,
             "top_p": 0.95,
@@ -67,7 +68,7 @@ def generate_response(user_input):
 
     response = model.generate_content(prompt)
 
-    raw_content = response.text  # new way
+    raw_content = response.text
     return clean_response(raw_content)
 
 
