@@ -56,30 +56,71 @@ def generate_response(user_input):
     prompt = f"{user_input}"
     
     generation_config = {
-        "temperature": 0.45,
-        "top_p": 0.95,
-        "top_k": 64,
-        "max_output_tokens": 1500,
+        "temperature": 0.3,
+        "top_p": 0.8,
+        "top_k": 40,
+        "max_output_tokens": 2000,
         "response_mime_type": "text/plain",
     }
+    
+    # Configure safety settings to be less restrictive
+    safety_settings = [
+        {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "threshold": "BLOCK_ONLY_HIGH"
+        },
+        {
+            "category": "HARM_CATEGORY_HATE_SPEECH", 
+            "threshold": "BLOCK_ONLY_HIGH"
+        },
+        {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "threshold": "BLOCK_ONLY_HIGH"
+        },
+        {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "threshold": "BLOCK_NONE"
+        }
+    ]
     
     model = genai.GenerativeModel(
         model_name="models/gemini-2.5-flash",
         generation_config=generation_config,
+        safety_settings=safety_settings,
     )
     
-    response = model.generate_content(prompt)
-    
-    # Properly extract text from response
-    if response.candidates and len(response.candidates) > 0:
-        if hasattr(response.candidates[0].content, 'parts') and response.candidates[0].content.parts:
-            raw_content = response.candidates[0].content.parts[0].text
+    try:
+        response = model.generate_content(prompt)
+        
+        # Check if response was blocked by safety filters
+        if response.candidates and len(response.candidates) > 0:
+            candidate = response.candidates[0]
+            
+            # Check finish reason
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                # Safety block - return a generic informative response
+                return "I understand you're looking for travel information. For the most current and detailed guidance about this destination, I recommend consulting official government travel advisories, local tourism boards, and recent traveler reviews. Each destination has unique considerations for visitors."
+            
+            # Try to extract text content
+            if hasattr(candidate, 'content') and candidate.content:
+                if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                    raw_content = candidate.content.parts[0].text
+                else:
+                    raw_content = str(candidate.content)
+            else:
+                raw_content = "Unable to generate detailed recommendations at this time."
         else:
-            raw_content = response.text if hasattr(response, 'text') else str(response.candidates[0].content)
-    else:
-        raw_content = response.text if hasattr(response, 'text') else "No response generated"
-    
-    return clean_response(raw_content)
+            # Fallback if no candidates
+            if hasattr(response, 'text') and response.text:
+                raw_content = response.text
+            else:
+                raw_content = "Unable to generate recommendations. Please try again."
+        
+        return clean_response(raw_content)
+        
+    except Exception as e:
+        print(f"Error in generate_response: {e}")
+        return "I apologize, but I'm unable to generate recommendations at this time. Please try again later or consult official travel resources."
 
 
 
@@ -125,17 +166,27 @@ def get_recommendation():
         # Prepare the prompt for Gemini AI
         if intent.lower() == "travel":
             prompt = (
-                f"{country} has a safety status of '{safety_status}' with a trend of '{trend}'. "
-                "Provide a detailed travel recommendation in a point-wise format. "
-                "Include safety precautions, cultural attractions, best times to visit, "
-                "and travel tips. Format subheadings in bold."
+                f"Please provide comprehensive travel guidance for {country}. "
+                f"This destination has a current stability classification of '{safety_status}' with a '{trend}' outlook. "
+                "Please structure your response with clear sections covering:\n"
+                "**Planning Your Visit**: Optimal travel times and preparation tips\n"
+                "**Cultural Experiences**: Major attractions, local customs, and unique experiences\n"
+                "**Practical Information**: Transportation, accommodation, and local guidelines\n"
+                "**Health and Wellness**: Medical facilities and health considerations\n"
+                "**Local Insights**: Currency, communication, and helpful travel tips\n"
+                "Format your response with clear headings and bullet points for easy reading."
             )
         elif intent.lower() == "settlement":
             prompt = (
-                f"{country} has a safety status of '{safety_status}' with a trend of '{trend}'. "
-                "Provide a detailed settlement recommendation in a point-wise format. "
-                "Discuss quality of life, safety, cost of living, job opportunities, "
-                "and potential challenges. Format subheadings in bold."
+                f"Please provide comprehensive relocation guidance for {country}. "
+                f"This destination has a current stability classification of '{safety_status}' with a '{trend}' outlook. "
+                "Please structure your response with clear sections covering:\n"
+                "**Quality of Life**: Living standards, infrastructure, and lifestyle\n"
+                "**Economic Landscape**: Employment opportunities and business environment\n"
+                "**Financial Considerations**: Cost of living, housing, and expenses\n"
+                "**Social Environment**: Community, culture, and integration aspects\n"
+                "**Practical Requirements**: Legal processes, documentation, and logistics\n"
+                "Format your response with clear headings and bullet points for easy reading."
             )
         else:
             return jsonify({"error": "Invalid intent value. Supported intents are 'Travel' and 'Settlement'"}), 400
